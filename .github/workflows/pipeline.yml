@@ -1,0 +1,43 @@
+name: Kobo to Supabase Pipeline
+
+on:
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+  schedule:
+    # Runs every hour at minute 0 (e.g., 00:00, 01:00, 02:00 UTC)
+    # You can adjust this cron schedule as needed.
+    # For every 2 minutes (like in Colab), it would be '*/2 * * * *'
+    # Note: GitHub Actions' shortest schedule interval is 5 minutes for free tier.
+    - cron: '0 * * * *'
+
+jobs:
+  run_pipeline:
+    runs-on: ubuntu-latest
+    environment: # Recommended for better secret management
+      name: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9' # Or your preferred Python version, e.g., '3.10', '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Kobo to Supabase pipeline
+        run: python pipeline.py
+        env:
+          # Pass your GitHub Secrets as environment variables to the script
+          KOBO_API_TOKEN: ${{ secrets.KOBO_API_TOKEN }}
+          KOBO_FORM_ASSET_ID: ${{ secrets.KOBO_FORM_ASSET_ID }}
+          SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
+          SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
+          SUPABASE_SCHEMA: ${{ secrets.SUPABASE_SCHEMA }}
+          SUPABASE_TABLE_NAME: ${{ secrets.SUPABASE_TABLE_NAME }}
