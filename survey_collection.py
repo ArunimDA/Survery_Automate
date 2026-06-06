@@ -13,7 +13,6 @@ SUPABASE_USER = os.getenv("SUPABASE_USER")
 SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
 SUPABASE_HOST = os.getenv("SUPABASE_HOST")
 SUPABASE_DB_NAME = os.getenv("SUPABASE_DB_NAME")
-SUPABASE_PORT = os.getenv("SUPABASE_PORT")
 SUPABASE_SCHEMA = os.getenv("SUPABASE_SCHEMA")
 SUPABASE_TABLE_NAME = os.getenv("SUPABASE_TABLE_NAME")
 
@@ -25,6 +24,9 @@ servers = {
 headers = {"Authorization": f"Token {MY_API_TOKEN}"}
 
 def extract_lat_lon(location_str):
+    """
+    Extracts float values for Latitude and Longitude from space-separated Kobo coordinates.
+    """
     if pd.isna(location_str):
         return None, None
     parts = str(location_str).split()
@@ -36,18 +38,22 @@ def extract_lat_lon(location_str):
     return None, None
 
 def push_to_supabase(df_to_push, engine):
+    """
+    Handles appending new data rows safely to the specified Supabase schema and table.
+    """
     if df_to_push.empty:
-        print(f"No new data to push to target schema destination.")
+        print("No new data rows to push to target schema destination.")
         return
 
     try:
+        # Ensure _submission_time is timezone-naive for smooth PostgreSQL compatibility
         if '_submission_time' in df_to_push.columns and df_to_push['_submission_time'].dt.tz is not None:
             df_to_push['_submission_time'] = df_to_push['_submission_time'].dt.tz_convert(None)
 
         with engine.connect() as connection:
             connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS \"{SUPABASE_SCHEMA}\""))
             connection.commit()
-            print("Ensured schema exists.")
+            print(f"Ensured schema '{SUPABASE_SCHEMA}' exists.")
 
         df_to_push.to_sql(
             name=SUPABASE_TABLE_NAME,
@@ -65,7 +71,7 @@ def run_data_pipeline(engine):
     current_df = None
     for server_name, domain in servers.items():
         api_url = f"https://{domain}/api/v2/assets/{FORM_ASSET_ID}/data/?format=json"
-        print(f"Scanning cloud infrastructure endpoint...")
+        print(f"Scanning cloud infrastructure endpoint on {server_name}...")
         try:
             response = requests.get(api_url, headers=headers)
             if response.status_code == 200:
@@ -73,8 +79,9 @@ def run_data_pipeline(engine):
                 submissions = raw_json_data.get('results', [])
                 if len(submissions) > 0:
                     current_df = pd.DataFrame(submissions)
+                    # Clean long prefix system paths out of column names
                     current_df.columns = [col.split('/')[-1] if '/' in col else col for col in current_df.columns]
-                    print(f"✅ Connection successful! Fetched {len(current_df)} rows.")
+                    print(f"✅ Connection successful! Fetched {len(current_df)} rows from Kobo.")
                     break
         except Exception as e:
             print(f"Connection error encountered: {e}")
@@ -91,14 +98,16 @@ def run_data_pipeline(engine):
 
     cleaned_df = current_df[required_columns].copy()
 
+    # Data transformation formatting rules
     cleaned_df['Age'] = cleaned_df['Age'].astype(str).str.replace('_', '-')
     cleaned_df['Salary'] = pd.to_numeric(cleaned_df['Salary'], errors='coerce')
     cleaned_df['_submission_time'] = pd.to_datetime(cleaned_df['_submission_time'], errors='coerce')
     cleaned_df['_id'] = cleaned_df['_id'].astype(str)
 
+    # Apply GPS extraction
     cleaned_df[['Latitude', 'Longitude']] = cleaned_df['Location'].apply(lambda x: pd.Series(extract_lat_lon(x)))
 
-    # --- Incremental Deduplication ---
+    # --- Incremental Deduplication Check ---
     existing_ids = set()
     try:
         with engine.connect() as connection:
@@ -109,20 +118,23 @@ def run_data_pipeline(engine):
                 result = connection.execute(text(f"SELECT _id FROM \"{SUPABASE_SCHEMA}\".\"{SUPABASE_TABLE_NAME}\""))
                 existing_ids = set([str(row[0]) for row in result.fetchall()])
                 print(f"Found {len(existing_ids)} pre-existing keys in database.")
+            else:
+                print("Target table does not exist yet. Proceeding with initial fallback table creation.")
     except Exception as e:
         print(f"Database sync notice: {e}")
 
+    # Isolate strictly unique new entries
     new_rows_df = cleaned_df[~cleaned_df['_id'].isin(existing_ids)].copy()
     print(f"Target new rows detected: {len(new_rows_df)}")
 
-    # --- Load Data ---
+    # --- Load Data Step ---
     push_to_supabase(new_rows_df, engine)
     print("--- Pipeline Flow Completed Successfully ---")
 
+
 if __name__ == "__main__":
-    DATABASE_URL = f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB_NAME}"
-    try:
-        db_engine = create_engine(DATABASE_URL)
-        run_data_pipeline(db_engine)
-    except Exception as e:
-        print(f"Fatal Initialization Error: {e}")
+    # Fetch parameters safely from the workflow runner environment
+    user = os.getenv("SUPABASE_USER")
+    password = os.getenv("SUPABASE_PASSWORD")
+    host = os.getenv("SUPABASE_HOST")
+    db_name = os
