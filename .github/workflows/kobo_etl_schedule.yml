@@ -2,8 +2,8 @@ name: Automated Kobo to Supabase ETL
 
 on:
   repository_dispatch:
-    types: [submission]   # Kobo sends a 'submission' type request by default when forms roll in
-  workflow_dispatch:      # This keeps your manual "Run" testing button active too
+    types: [kobo_submission_event]   # This listens for the exact event trigger sent from Kobo
+  workflow_dispatch:                  # Keeps your manual test play button active too
 
 jobs:
   run-pipeline:
