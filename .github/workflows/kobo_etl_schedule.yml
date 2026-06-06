@@ -2,8 +2,8 @@ name: Automated Kobo to Supabase ETL
 
 on:
   repository_dispatch:
-    types: [kobo_submission_event]   # This listens for the exact event trigger sent from Kobo
-  workflow_dispatch:                  # Keeps your manual test play button active too
+    types: [kobo_submission_event]   # Listens for the real-time webhook signal sent from Kobo
+  workflow_dispatch:                  # Keeps your manual "Run workflow" testing button active too
 
 jobs:
   run-pipeline:
@@ -26,6 +26,7 @@ jobs:
 
     - name: Run ETL Pipeline Script
       env:
+        # These pull the data securely from your 9 individual Repository Secrets
         KOBO_TOKEN: ${{ secrets.KOBO_TOKEN }}
         FORM_ASSET_ID: ${{ secrets.FORM_ASSET_ID }}
         SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
