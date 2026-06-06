@@ -1,38 +1,38 @@
 name: Automated Kobo to Supabase ETL
 
 on:
-  schedule:
-    # This CRON schedule triggers the script automatically every 30 minutes. 
-    - cron: '*/30 * * * *'
-  workflow_dispatch:
-    # This line is highly important: it gives you a manual "Run" button to test it instantly!
+  repository_dispatch:
+    types: [submission]   # Kobo sends a 'submission' type request by default when forms roll in
+  workflow_dispatch:      # This keeps your manual "Run" testing button active too
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Download code from repo to runner
     - name: Check out repo code
       uses: actions/checkout@v4
 
-    # Step 2: Provision a clean Python ecosystem environment
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
         cache: 'pip'
 
-    # Step 3: Install all needed data cleaning modules
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # Step 4: Securely inject secrets and execute script
     - name: Run ETL Pipeline Script
       env:
         KOBO_TOKEN: ${{ secrets.KOBO_TOKEN }}
+        FORM_ASSET_ID: ${{ secrets.FORM_ASSET_ID }}
         SUPABASE_USER: ${{ secrets.SUPABASE_USER }}
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+        SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+        SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+        SUPABASE_PORT: ${{ secrets.SUPABASE_PORT }}
+        SUPABASE_SCHEMA: ${{ secrets.SUPABASE_SCHEMA }}
+        SUPABASE_TABLE_NAME: ${{ secrets.SUPABASE_TABLE_NAME }}
       run: python survey_collection.py
