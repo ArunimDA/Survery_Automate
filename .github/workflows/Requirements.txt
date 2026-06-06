@@ -1,6 +1,0 @@
-pandas
-requests
-sqlalchemy
-psycopg2-binary
-openpyxl # pandas might implicitly need this for some operations, good to include
-pytz # For timezone handling in datetime
